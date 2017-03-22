@@ -254,6 +254,47 @@ namespace Microsoft.AspNetCore.Hosting
         }
 
         [Fact]
+        public void CanUseCustomLoggerFactory()
+        {
+            var hostBuilder = new WebHostBuilder()
+                .ConfigureTestLogger(factory =>
+                {
+                    factory.CustomConfigureMethod();
+                })
+                .UseServer(new TestServer())
+                .UseStartup<StartupNoServices>();
+            var host = (WebHost)hostBuilder.Build();
+            Assert.IsType(typeof(TestLoggerFactory), host.Services.GetService<ILoggerFactory>());
+        }
+
+        [Fact]
+        public void CanConfigureConfigurationAndRetrieveFromDI()
+        {
+            var hostBuilder = new WebHostBuilder()
+                .UseConfiguration((configBuilder, env) =>
+                {
+                    configBuilder.AddInMemoryCollection()
+                                 .AddEnvironmentVariables();
+                })
+                .UseServer(new TestServer())
+                .UseStartup<StartupNoServices>();
+            var host = (WebHost)hostBuilder.Build();
+
+            Assert.NotNull(host.Services.GetService<IConfiguration>());
+        }
+
+        [Fact]
+        public void ThereIsAlwaysConfiguration()
+        {
+            var hostBuilder = new WebHostBuilder()
+                .UseServer(new TestServer())
+                .UseStartup<StartupNoServices>();
+            var host = (WebHost)hostBuilder.Build();
+
+            Assert.NotNull(host.Services.GetService<IConfiguration>());
+        }
+
+        [Fact]
         public void DoNotCaptureStartupErrorsByDefault()
         {
             var hostBuilder = new WebHostBuilder()

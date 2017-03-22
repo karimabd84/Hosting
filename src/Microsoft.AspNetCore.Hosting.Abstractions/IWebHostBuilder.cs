@@ -40,6 +40,13 @@ namespace Microsoft.AspNetCore.Hosting
         IWebHostBuilder ConfigureLogging(Action<ILoggerFactory> configureLogging);
 
         /// <summary>
+        /// Adds a delegate for configuring the provided <see cref="ILoggerFactory"/>. This may be called multiple times.
+        /// </summary>
+        /// <param name="configureLogging">The delegate that configures the <see cref="ILoggerFactory"/>.</param>
+        /// <returns>The <see cref="IWebHostBuilder"/>.</returns>
+        IWebHostBuilder ConfigureLogging<T>(Action<T> configureLogging) where T : ILoggerFactory;
+
+        /// <summary>
         /// Add or replace a setting in the configuration.
         /// </summary>
         /// <param name="key">The key of the setting to add or replace.</param>

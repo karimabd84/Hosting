@@ -161,7 +161,7 @@ namespace Microsoft.AspNetCore.Hosting
                 throw new ArgumentNullException(nameof(configureLogging));
             }
 
-            _configureLoggingDelegates.Add(configureLogging as Action<ILoggerFactory>);
+            _configureLoggingDelegates.Add(factory => configureLogging((T)factory));
             return this;
         }
 
@@ -244,7 +244,7 @@ namespace Microsoft.AspNetCore.Hosting
             {
                 _configureConfigurationBuilderDelegate(builder, _hostingEnvironment);
             }
-            services.AddSingleton(builder.Build());
+            services.AddSingleton<IConfiguration>(builder.Build());
 
             ILoggerFactory loggerFactory;
             // The configured ILoggerFactory is added as a singleton here. AddLogging below will not add an additional one.
