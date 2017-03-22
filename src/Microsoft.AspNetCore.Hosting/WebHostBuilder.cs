@@ -29,9 +29,10 @@ namespace Microsoft.AspNetCore.Hosting
         private readonly List<Action<ILoggerFactory>> _configureLoggingDelegates;
 
         private IConfiguration _config;
-        private ILoggerFactory _loggerFactory;
         private WebHostOptions _options;
         private bool _webHostBuilt;
+        private Func<IHostingEnvironment, IConfiguration, ILoggerFactory> _loggerFactoryFunc;
+        private Action<IConfigurationBuilder, IHostingEnvironment> _configureConfigurationBuilderDelegate;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WebHostBuilder"/> class.
@@ -94,7 +95,7 @@ namespace Microsoft.AspNetCore.Hosting
                 throw new ArgumentNullException(nameof(loggerFactory));
             }
 
-            _loggerFactory = loggerFactory;
+            _loggerFactoryFunc = (_, __) => loggerFactory;
             return this;
         }
 
@@ -128,6 +129,55 @@ namespace Microsoft.AspNetCore.Hosting
             }
 
             _configureLoggingDelegates.Add(configureLogging);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a delegate to construct the <see cref="ILoggerFactory"/> that will be registered
+        /// as a singleton and used by the application.
+        /// </summary>
+        /// <param name="createLoggerFactory">The delegate that constructs an <see cref="IConfigurationBuilder" /></param>
+        /// <returns>The <see cref="IWebHostBuilder"/>.</returns>
+        public IWebHostBuilder UseLoggerFactory(Func<IHostingEnvironment, IConfiguration, ILoggerFactory> createLoggerFactory)
+        {
+            if(createLoggerFactory == null)
+            {
+                throw new ArgumentNullException(nameof(createLoggerFactory));
+            }
+
+            _loggerFactoryFunc = createLoggerFactory;
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a delegate for configuring the provided <see cref="ILoggerFactory"/>. This may be called multiple times.
+        /// </summary>
+        /// <param name="configureLogging">The delegate that configures the <see cref="ILoggerFactory"/>.</param>
+        /// <returns>The <see cref="IWebHostBuilder"/>.</returns>
+        public IWebHostBuilder ConfigureLogging<T>(Action<T> configureLogging) where T: ILoggerFactory
+        {
+            if (configureLogging == null)
+            {
+                throw new ArgumentNullException(nameof(configureLogging));
+            }
+
+            _configureLoggingDelegates.Add(configureLogging as Action<ILoggerFactory>);
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a delegate for configuring the <see cref="IConfigurationBuilder"/> that will construct an <see cref="IConfiguration"/>.
+        /// </summary>
+        /// <param name="configureDelegate">The delegate for configuring the <see cref="IConfigurationBuilder" /> that will be used to construct an <see cref="IConfiguration" />.</param>
+        /// <returns>The <see cref="IWebHostBuilder"/>.</returns>
+        public IWebHostBuilder UseConfiguration(Action<IConfigurationBuilder, IHostingEnvironment> configureDelegate)
+        {
+            if(configureDelegate == null)
+            {
+                throw new ArgumentNullException(nameof(configureDelegate));
+            }
+
+            _configureConfigurationBuilderDelegate = configureDelegate;
             return this;
         }
 
@@ -189,20 +239,32 @@ namespace Microsoft.AspNetCore.Hosting
             var services = new ServiceCollection();
             services.AddSingleton(_hostingEnvironment);
 
-            // The configured ILoggerFactory is added as a singleton here. AddLogging below will not add an additional one.
-            if (_loggerFactory == null)
+            var builder = new ConfigurationBuilder();
+            if(_configureConfigurationBuilderDelegate != null)
             {
-                _loggerFactory = new LoggerFactory();
-                services.AddSingleton(provider => _loggerFactory);
+                _configureConfigurationBuilderDelegate(builder, _hostingEnvironment);
+            }
+            services.AddSingleton(builder.Build());
+
+            ILoggerFactory loggerFactory;
+            // The configured ILoggerFactory is added as a singleton here. AddLogging below will not add an additional one.
+            if (_loggerFactoryFunc == null)
+            {
+                loggerFactory = new LoggerFactory();
             }
             else
             {
-                services.AddSingleton(_loggerFactory);
+                loggerFactory = _loggerFactoryFunc(_hostingEnvironment, _config);
             }
 
+            services.AddSingleton(loggerFactory);
+
+            //Maintain this loop so that the existing ConfigureLogging still works
+            //we will remove this when we remove that method in a later
+            //release.
             foreach (var configureLogging in _configureLoggingDelegates)
             {
-                configureLogging(_loggerFactory);
+                configureLogging(loggerFactory);
             }
 
             //This is required to add ILogger of T.

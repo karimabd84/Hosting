@@ -5,8 +5,10 @@ using System;
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Internal;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.AspNetCore.Hosting
 {
@@ -91,6 +93,22 @@ namespace Microsoft.AspNetCore.Hosting
                 configure(options);
                 services.Replace(ServiceDescriptor.Singleton<IServiceProviderFactory<IServiceCollection>>(new DefaultServiceProviderFactory(options)));
             });
+        }
+
+        public static IWebHostBuilder ConfigureLogging(this IWebHostBuilder builder, Action<IHostingEnvironment, IConfiguration, LoggerFactory> configure)
+        {
+            if(configure == null)
+            {
+                throw new ArgumentNullException(nameof(configure));
+            }
+
+            builder.UseLoggerFactory((env, conf) => {
+                var loggerFactory = new LoggerFactory();
+                configure(env, conf, loggerFactory);
+                return loggerFactory;
+            });
+
+            return builder;
         }
     }
 }

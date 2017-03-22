@@ -215,6 +215,45 @@ namespace Microsoft.AspNetCore.Hosting
         }
 
         [Fact]
+        public void UseLoggerFactoryDelegateIsHonored()
+        {
+            var loggerFactory = new LoggerFactory();
+
+            var hostBuilder = new WebHostBuilder()
+                .UseLoggerFactory((env, config) => {
+                    return loggerFactory;
+                })
+                .UseServer(new TestServer())
+                .UseStartup<StartupNoServices>();
+
+            var host = (WebHost)hostBuilder.Build();
+
+            Assert.Same(loggerFactory, host.Services.GetService<ILoggerFactory>());
+        }
+
+        [Fact]
+        public void UseLoggerFactoryFuncAndConfigureLoggingCompose()
+        {
+            var callCount = 0; //Verify that multiple configureLogging calls still compose correctly.
+            var loggerFactory = new LoggerFactory();
+            var hostBuilder = new WebHostBuilder()
+                .UseLoggerFactory((_, __) => loggerFactory)
+                .ConfigureLogging(factory =>
+                {
+                    Assert.Equal(0, callCount++);
+                })
+                .ConfigureLogging(factory =>
+                {
+                    Assert.Equal(1, callCount++);
+                })
+                .UseServer(new TestServer())
+                .UseStartup<StartupNoServices>();
+            var host = (WebHost)hostBuilder.Build();
+            Assert.Equal(2, callCount);
+            Assert.Same(loggerFactory, host.Services.GetService<ILoggerFactory>());
+        }
+
+        [Fact]
         public void DoNotCaptureStartupErrorsByDefault()
         {
             var hostBuilder = new WebHostBuilder()
