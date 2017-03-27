@@ -102,6 +102,10 @@ namespace Microsoft.AspNetCore.TestHost
             });
         }
 
+        void IServer.Stop()
+        {
+        }
+
         private class ApplicationWrapper<TContext> : IHttpApplication<TContext>
         {
             private readonly IHttpApplication<TContext> _application;

@@ -761,6 +761,17 @@ namespace Microsoft.AspNetCore.Hosting
             application.DisposeContext(context, null);
         }
 
+        public void Stop()
+        {
+            if (_startInstances != null)
+            {
+                foreach (var startInstance in _startInstances)
+                {
+                    startInstance.Stop();
+                }
+            }
+        }
+
         public void Dispose()
         {
             if (_startInstances != null)
@@ -813,7 +824,14 @@ namespace Microsoft.AspNetCore.Hosting
 
         private class StartInstance : IDisposable
         {
+            public int StopCalls { get; set; }
+
             public int DisposeCalls { get; set; }
+
+            public void Stop()
+            {
+                StopCalls += 1;
+            }
 
             public void Dispose()
             {

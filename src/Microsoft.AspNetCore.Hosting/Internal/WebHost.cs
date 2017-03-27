@@ -271,6 +271,8 @@ namespace Microsoft.AspNetCore.Hosting.Internal
             // Fire IApplicationLifetime.Stopping
             _applicationLifetime?.StopApplication();
 
+            Server?.Stop();
+
             // Fire the IHostedService.Stop
             _hostedServiceExecutor?.Stop();
 

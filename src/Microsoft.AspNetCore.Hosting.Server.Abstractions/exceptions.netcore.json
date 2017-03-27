@@ -1,0 +1,8 @@
+[
+  {
+    "OldTypeId": "public interface Microsoft.AspNetCore.Hosting.Server.IServer : System.IDisposable",
+    "NewTypeId": "public interface Microsoft.AspNetCore.Hosting.Server.IServer : System.IDisposable",
+    "NewMemberId": "System.Void Stop()",
+    "Kind": "Addition"
+  }
+]

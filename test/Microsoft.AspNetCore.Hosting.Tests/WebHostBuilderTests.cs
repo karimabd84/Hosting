@@ -761,6 +761,11 @@ namespace Microsoft.AspNetCore.Hosting
                     application.DisposeContext(httpContext, null);
                 };
             }
+
+            public void Stop()
+            {
+
+            }
         }
 
         internal class StartupVerifyServiceA : IStartup
