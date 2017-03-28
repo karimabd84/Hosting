@@ -1,10 +1,11 @@
-// Copyright (c) .NET Foundation. All rights reserved.
+﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.IntegrationTesting.Common;
 using Microsoft.Extensions.Logging;
 
@@ -23,7 +24,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
         {
         }
 
-        public override DeploymentResult Deploy()
+        public override async Task<DeploymentResult> DeployAsync()
         {
             _configFile = Path.GetTempFileName();
             var uri = new Uri(DeploymentParameters.ApplicationBaseUriHint);
@@ -35,18 +36,18 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
                 DotnetPublish();
             }
 
-            var exitToken = StartSelfHost(new Uri(redirectUri));
+            var (appUri, exitToken) = await StartSelfHostAsync(new Uri(redirectUri));
 
-            SetupNginx(redirectUri, uri);
+            SetupNginx(appUri, uri);
 
             // Wait for App to be loaded since Nginx returns 502 instead of 503 when App isn't loaded
             // Target actual address to avoid going through Nginx proxy
             using (var httpClient = new HttpClient())
             {
-                var response = RetryHelper.RetryRequest(() =>
+                var response = await RetryHelper.RetryRequest(() =>
                 {
                     return httpClient.GetAsync(redirectUri);
-                }, Logger, exitToken).Result;
+                }, Logger, exitToken);
 
                 if (!response.IsSuccessStatusCode)
                 {

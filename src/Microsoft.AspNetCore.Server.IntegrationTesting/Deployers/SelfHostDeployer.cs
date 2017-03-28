@@ -1,11 +1,13 @@
-// Copyright (c) .NET Foundation. All rights reserved.
+﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.IntegrationTesting.Common;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +18,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
     /// </summary>
     public class SelfHostDeployer : ApplicationDeployer
     {
+        private static readonly Regex NowListeningRegex = new Regex(@"^\s*Now listening on: (?<url>.*)$");
         public Process HostProcess { get; private set; }
 
         public SelfHostDeployer(DeploymentParameters deploymentParameters, ILogger logger)
@@ -23,7 +26,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
         {
         }
 
-        public override DeploymentResult Deploy()
+        public override async Task<DeploymentResult> DeployAsync()
         {
             // Start timer
             StartTimer();
@@ -33,20 +36,20 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
                 DotnetPublish();
             }
 
-            var uri = TestUriHelper.BuildTestUri(DeploymentParameters.ApplicationBaseUriHint);
+            var hintUrl = TestUriHelper.BuildTestUri(DeploymentParameters.ApplicationBaseUriHint);
             // Launch the host process.
-            var hostExitToken = StartSelfHost(uri);
+            var (actualUrl, hostExitToken) = await StartSelfHostAsync(hintUrl);
 
             return new DeploymentResult
             {
                 ContentRoot = DeploymentParameters.PublishApplicationBeforeDeployment ? DeploymentParameters.PublishedApplicationRootPath : DeploymentParameters.ApplicationPath,
                 DeploymentParameters = DeploymentParameters,
-                ApplicationBaseUri = uri.ToString(),
+                ApplicationBaseUri = actualUrl.ToString(),
                 HostShutdownToken = hostExitToken
             };
         }
 
-        protected CancellationToken StartSelfHost(Uri uri)
+        protected async Task<(string url, CancellationToken hostExitToken)> StartSelfHostAsync(Uri uri)
         {
             string executableName;
             string executableArgs = string.Empty;
@@ -109,9 +112,18 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
 
             AddEnvironmentVariablesToProcess(startInfo, DeploymentParameters.EnvironmentVariables);
 
+            var started = new TaskCompletionSource<string>();
+
             HostProcess = new Process() { StartInfo = startInfo };
             HostProcess.ErrorDataReceived += (sender, dataArgs) => { Logger.LogError(dataArgs.Data ?? string.Empty); };
-            HostProcess.OutputDataReceived += (sender, dataArgs) => { Logger.LogInformation(dataArgs.Data ?? string.Empty); };
+            HostProcess.OutputDataReceived += (sender, dataArgs) => {
+                var m = NowListeningRegex.Match(dataArgs.Data);
+                if(m.Success)
+                {
+                    started.TrySetResult(m.Groups["url"].Value);
+                }
+                Logger.LogInformation(dataArgs.Data ?? string.Empty);
+            };
             HostProcess.EnableRaisingEvents = true;
             var hostExitTokenSource = new CancellationTokenSource();
             HostProcess.Exited += (sender, e) =>
@@ -137,7 +149,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
             }
 
             Logger.LogInformation("Started {fileName}. Process Id : {processId}", startInfo.FileName, HostProcess.Id);
-            return hostExitTokenSource.Token;
+            return (url: await started.Task, hostExitToken: hostExitTokenSource.Token);
         }
 
         public override void Dispose()

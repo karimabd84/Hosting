@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
@@ -73,7 +74,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
             }
         }
 
-        public override DeploymentResult Deploy()
+        public override async Task<DeploymentResult> DeployAsync()
         {
             if (_isDisposed)
             {
@@ -97,7 +98,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
                 copySubDirs: true);
             Logger.LogInformation($"Copied the locally published folder to the file share path '{_deployedFolderPathInFileShare}'");
 
-            RunScript("StartServer");
+            await RunScriptAsync("StartServer");
 
             return new DeploymentResult
             {
@@ -118,7 +119,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
             try
             {
                 Logger.LogInformation($"Stopping the application on the server '{_deploymentParameters.ServerName}'");
-                RunScript("StopServer");
+                RunScriptAsync("StopServer").Wait();
             }
             catch (Exception ex)
             {
@@ -182,7 +183,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
             }
         }
 
-        private void RunScript(string serverAction)
+        private async Task RunScriptAsync(string serverAction)
         {
             var remotePSSessionHelperScript = _scripts.Value.RemotePSSessionHelper;
 
@@ -237,6 +238,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
 
             using (var runScriptsOnRemoteServerProcess = new Process() { StartInfo = startInfo })
             {
+                var processExited = new TaskCompletionSource<object>();
                 runScriptsOnRemoteServerProcess.EnableRaisingEvents = true;
                 runScriptsOnRemoteServerProcess.ErrorDataReceived += (sender, dataArgs) =>
                 {
@@ -254,9 +256,16 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
                     }
                 };
 
+                runScriptsOnRemoteServerProcess.Exited += (sender, exitedArgs) =>
+                {
+                    processExited.TrySetResult(null);
+                };
+
                 runScriptsOnRemoteServerProcess.Start();
                 runScriptsOnRemoteServerProcess.BeginErrorReadLine();
                 runScriptsOnRemoteServerProcess.BeginOutputReadLine();
+
+                await processExited.Task.OrTimeout(TimeSpan.FromMinutes(1));
                 runScriptsOnRemoteServerProcess.WaitForExit((int)TimeSpan.FromMinutes(1).TotalMilliseconds);
 
                 if (runScriptsOnRemoteServerProcess.HasExited && runScriptsOnRemoteServerProcess.ExitCode != 0)

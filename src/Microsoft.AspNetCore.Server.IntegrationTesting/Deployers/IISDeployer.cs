@@ -1,4 +1,4 @@
-// Copyright (c) .NET Foundation. All rights reserved.
+﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 #if NET46
@@ -6,6 +6,7 @@
 using System;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Server.IntegrationTesting.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.Administration;
@@ -26,7 +27,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
         {
         }
 
-        public override DeploymentResult Deploy()
+        public override async Task<DeploymentResult> DeployAsync()
         {
             // Start timer
             StartTimer();
@@ -53,7 +54,7 @@ namespace Microsoft.AspNetCore.Server.IntegrationTesting
             }
 
             // Warm up time for IIS setup.
-            Thread.Sleep(1 * 1000);
+            await Task.Delay(TimeSpan.FromSeconds(1));
             Logger.LogInformation("Successfully finished IIS application directory setup.");
 
             return new DeploymentResult
